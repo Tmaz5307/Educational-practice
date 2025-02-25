@@ -10,7 +10,7 @@ class MainWin(QMainWindow):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle('Общага')
+        self.setWindowTitle('Главный экран')
         main_l = QVBoxLayout()
         wid = QWidget()
         wid.setLayout(main_l)

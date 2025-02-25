@@ -1,46 +1,135 @@
-from PyQt6.QtWidgets import *
-from PyQt6.QtGui import *
-from PyQt6.QtCore import *
+import sys
+from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem, QLineEdit, QLabel, QMessageBox
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from models import Room, Resident, Base  # Импортируем модели из ранее созданного файла
 
+# Настраиваем базу данных
+engine = create_engine('sqlite:///hostel0.db')
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
+session = Session()
 
-class Rooms(QWidget):
+class Rooms(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.initUI()
+        self.setWindowTitle("Система управления общежитием")
+        self.setGeometry(100, 100, 800, 600)
 
-    def initUI(self):
-        self.setWindowTitle('Комнаты')
-        main_l = QVBoxLayout()
-        h_l1 = QHBoxLayout()
-        h_l2 = QHBoxLayout()
-        self.resize(650, 600)
-        self.setFixedSize(self.width(), self.height())
-        self.label = QLabel(self)
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        h_l1.addWidget(self.label)
-        self.delete_button = QPushButton('Удалить')
-        self.add_button = QPushButton('Добавить')
-        self.edit_button = QPushButton('Изменить')
-        self.close_button = QPushButton('Закрыть')
-        h_l2.addWidget(self.add_button)
-        h_l2.addWidget(self.delete_button)
-        h_l2.addWidget(self.edit_button)
-        h_l2.addWidget(self.close_button)
-        main_l.addLayout(h_l1)
-        main_l.addStretch()
-        main_l.addLayout(h_l2)
-        self.setLayout(main_l)
-        self.show()
-        self.close_button.clicked.connect(self.go_back)
+        self.layout = QVBoxLayout()
 
-    def add_dish(self):
-        pass
+        # Создать таблицу для отображения данных
+        self.table = QTableWidget()
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.layout.addWidget(self.table)
 
-    def delete_dish(self):
-        pass
+        # Поля для ввода данных
+        self.name_input = QLineEdit()
+        self.age_input = QLineEdit()
+        self.room_input = QLineEdit()
 
-    def edit_dish(self):
-        pass
+        self.layout.addWidget(QLabel("Имя:"))
+        self.layout.addWidget(self.name_input)
+        self.layout.addWidget(QLabel("Возраст:"))
+        self.layout.addWidget(self.age_input)
+        self.layout.addWidget(QLabel("Номер комнаты:"))
+        self.layout.addWidget(self.room_input)
 
-    def go_back(self):
-        self.close()
+        # Кнопки управления
+        self.add_button = QPushButton("Добавить жителя")
+        self.add_button.clicked.connect(self.add_resident)
+        self.layout.addWidget(self.add_button)
+
+        self.update_button = QPushButton("Изменить жителя")
+        self.update_button.clicked.connect(self.update_resident)
+        self.layout.addWidget(self.update_button)
+
+        self.delete_button = QPushButton("Удалить жителя")
+        self.delete_button.clicked.connect(self.delete_resident)
+        self.layout.addWidget(self.delete_button)
+
+        self.refresh_button = QPushButton("Обновить данные")
+        self.refresh_button.clicked.connect(self.load_data)
+        self.layout.addWidget(self.refresh_button)
+
+        container = QWidget()
+        container.setLayout(self.layout)
+        self.setCentralWidget(container)
+
+        # Загрузить данные при инициализации
+        self.load_data()
+
+    def load_data(self):
+        # Загрузить данные из базы
+        residents = session.query(Resident).all()
+        self.table.setRowCount(len(residents))
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["Имя", "Возраст", "Номер комнаты"])
+
+        for row_idx, resident in enumerate(residents):
+            self.table.setItem(row_idx, 0, QTableWidgetItem(resident.имя))
+            self.table.setItem(row_idx, 1, QTableWidgetItem(str(resident.возраст)))
+            self.table.setItem(row_idx, 2, QTableWidgetItem(resident.room.номер_комнаты if resident.room else "Нет комнаты"))
+
+    def add_resident(self):
+        имя = self.name_input.text()
+        возраст = int(self.age_input.text())
+        номер_комнаты = self.room_input.text()
+
+        room = session.query(Room).filter_by(номер_комнаты=номер_комнаты).first()
+        if not room:
+            room = Room(номер_комнаты=номер_комнаты, вместимость=1)
+            session.add(room)
+            session.commit()
+
+        new_resident = Resident(имя=имя, возраст=возраст, комната_id=room.id)
+        session.add(new_resident)
+        session.commit()
+
+        self.load_data()
+
+    def update_resident(self):
+        selected_row = self.table.currentRow()
+        if selected_row < 0:
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, выберите жителя для изменения")
+            return
+
+        resident_id = session.query(Resident).all()[selected_row].id
+        имя = self.name_input.text()
+        возраст = int(self.age_input.text())
+        номер_комнаты = self.room_input.text()
+
+        resident = session.query(Resident).filter_by(id=resident_id).first()
+        resident.имя = имя
+        resident.возраст = возраст
+
+        room = session.query(Room).filter_by(номер_комнаты=номер_комнаты).first()
+        if not room:
+            room = Room(номер_комнаты=номер_комнаты, вместимость=1)
+            session.add(room)
+            session.commit()
+
+        resident.комната_id = room.id
+        session.commit()
+
+        self.load_data()
+
+    def delete_resident(self):
+        selected_row = self.table.currentRow()
+        if selected_row < 0:
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, выберите жителя для удаления")
+            return
+
+        resident_id = session.query(Resident).all()[selected_row].id
+        resident = session.query(Resident).filter_by(id=resident_id).first()
+        session.delete(resident)
+        session.commit()
+
+        self.load_data()
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = DormitoryApp()
+    window.show()
+    sys.exit(app.exec())
