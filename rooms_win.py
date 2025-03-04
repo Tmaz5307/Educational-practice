@@ -52,6 +52,10 @@ class Rooms(QMainWindow):
         self.refresh_button.clicked.connect(self.load_data)
         self.layout.addWidget(self.refresh_button)
 
+        self.close_button = QPushButton("Закрыть")
+        self.close_button.clicked.connect(self.go_back)
+        self.layout.addWidget(self.close_button)
+
         container = QWidget()
         container.setLayout(self.layout)
         self.setCentralWidget(container)
@@ -126,6 +130,9 @@ class Rooms(QMainWindow):
         session.commit()
 
         self.load_data()
+
+    def go_back(self):
+        self.close()
 
 
 if __name__ == "__main__":
